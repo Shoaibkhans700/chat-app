@@ -64,7 +64,17 @@ pipeline {
                 }
             }
         }
+        stage('Test Sonar Network') {
+            steps {
+                sh '''
+                    echo "Testing network connectivity..."
 
+                    curl -v --connect-timeout 10 \
+                      http://13.203.154.220:9000/api/system/status
+                        '''
+            }
+        }
+        
         stage('SonarQube Analysis') {
 
             steps {
