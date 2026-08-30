@@ -2,7 +2,7 @@ pipeline {
 
     agent {
         docker {
-            image 'shoaib3/jenkins-agent:latest'
+            image 'shoaib3/python-agent'
             args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
