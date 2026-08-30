@@ -10,9 +10,6 @@ pipeline {
 
     stages {
 
-        // =========================================================
-        // CHECKOUT
-        // =========================================================
         stage('Checkout') {
             steps {
                 checkout scm
@@ -28,10 +25,6 @@ pipeline {
             }
         }
 
-
-        // =========================================================
-        // PYTHON UNIT TEST
-        // =========================================================
         stage('Backend Unit Test') {
 
             agent {
@@ -42,14 +35,7 @@ pipeline {
 
             steps {
                 dir('backend') {
-
                     sh '''
-                        set -e
-
-                        echo "=============================="
-                        echo "Python Version"
-                        echo "=============================="
-
                         python3 --version
 
                         python3 -m venv .venv
@@ -58,102 +44,31 @@ pipeline {
                         pip install --quiet -r requirements.txt
                         pip install --quiet pytest httpx
 
-                        echo "=============================="
-                        echo "Running Unit Tests"
-                        echo "=============================="
-
                         pytest -v
                     '''
                 }
             }
         }
-
-
-        // =========================================================
-        // TEST SONARQUBE NETWORK
-        // =========================================================
-        stage('Test Sonar Network') {
-
-            steps {
-
-                sh '''
-                    set -e
-
-                    echo "=============================="
-                    echo "Testing SonarQube Network"
-                    echo "=============================="
-
-                    curl -f \
-                      --connect-timeout 10 \
-                      http://13.203.154.220:9000/api/system/status
-
-                    echo ""
-                    echo "SonarQube network connection SUCCESS"
-                '''
-            }
-        }
-
-
-        // =========================================================
-        // TEST SONARQUBE TOKEN
-        // =========================================================
         stage('Test Sonar Authentication') {
-
             steps {
-
-                withCredentials([
-                    string(
-                        credentialsId: 'sonar-cred',
-                        variable: 'SONAR_TOKEN'
-                    )
-                ]) {
-
-                    sh '''
-                        set -e
-
-                        echo "=============================="
-                        echo "Testing SonarQube Authentication"
-                        echo "=============================="
-
-                        if [ -z "$SONAR_TOKEN" ]; then
-                            echo "ERROR: SONAR_TOKEN is empty"
-                            exit 1
-                        fi
-
-                        echo "Token available: YES"
-
-                        curl -f \
-                          -u "$SONAR_TOKEN:" \
-                          http://13.203.154.220:9000/api/v2/analysis/version
-
-                        echo ""
-                        echo "SonarQube authentication SUCCESS"
-                    '''
-                }
-            }
+                withSonarQubeEnv('sonarqube') {
+                sh '''
+                echo "Testing SonarQube..."
+                curl -u "$SONAR_AUTH_TOKEN:" \
+                    http://13.204.67.149:9000/api/v2/analysis/version
+            '''
         }
-
-
-        // =========================================================
-        // SONARQUBE ANALYSIS
-        // =========================================================
+    }
+}
         stage('SonarQube Analysis') {
 
             steps {
-
                 withSonarQubeEnv('sonarqube') {
 
                     script {
-
                         def scannerHome = tool 'sonar-scanner'
 
                         sh """
-                            set -e
-
-                            echo "=============================="
-                            echo "SonarQube Code Analysis"
-                            echo "=============================="
-
                             ${scannerHome}/bin/sonar-scanner \
                               -Dsonar.projectKey=chat-app \
                               -Dsonar.projectName=chat-app \
@@ -165,38 +80,22 @@ pipeline {
             }
         }
 
-
-        // =========================================================
-        // SONARQUBE QUALITY GATE
-        // =========================================================
         stage('SonarQube Quality Gate') {
 
             steps {
-
                 timeout(time: 5, unit: 'MINUTES') {
-
                     waitForQualityGate abortPipeline: true
                 }
             }
         }
 
-
-        // =========================================================
-        // BUILD DOCKER IMAGES
-        // =========================================================
         stage('Build Docker Images') {
 
             parallel {
 
                 stage('Backend Image') {
-
                     steps {
-
                         sh '''
-                            set -e
-
-                            echo "Building Backend Image..."
-
                             docker build \
                               -t ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG} \
                               ./backend
@@ -204,16 +103,9 @@ pipeline {
                     }
                 }
 
-
                 stage('Frontend Image') {
-
                     steps {
-
                         sh '''
-                            set -e
-
-                            echo "Building Frontend Image..."
-
                             docker build \
                               -t ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG} \
                               ./frontend
@@ -223,19 +115,12 @@ pipeline {
             }
         }
 
-
-        // =========================================================
-        // TRIVY SECURITY SCAN
-        // =========================================================
         stage('Trivy Security Scan') {
 
             steps {
-
                 sh '''
-                    set -e
-
                     echo "=============================="
-                    echo "Backend Security Scan"
+                    echo "Scanning Backend Image"
                     echo "=============================="
 
                     trivy image \
@@ -245,7 +130,7 @@ pipeline {
 
 
                     echo "=============================="
-                    echo "Frontend Security Scan"
+                    echo "Scanning Frontend Image"
                     echo "=============================="
 
                     trivy image \
@@ -256,10 +141,6 @@ pipeline {
             }
         }
 
-
-        // =========================================================
-        // PUSH TO DOCKER HUB
-        // =========================================================
         stage('Push to Docker Hub') {
 
             steps {
@@ -273,32 +154,19 @@ pipeline {
                 ]) {
 
                     sh '''
-                        set -e
-
-                        echo "=============================="
-                        echo "Docker Hub Login"
-                        echo "=============================="
-
                         echo "$DOCKER_PASSWORD" | docker login \
                           --username "$DOCKER_USERNAME" \
                           --password-stdin
 
-
-                        echo "=============================="
-                        echo "Push Backend"
-                        echo "=============================="
+                        echo "Pushing Backend Image..."
 
                         docker push \
                           ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
-
-                        echo "=============================="
-                        echo "Push Frontend"
-                        echo "=============================="
+                        echo "Pushing Frontend Image..."
 
                         docker push \
                           ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
-
 
                         docker logout
                     '''
@@ -307,41 +175,29 @@ pipeline {
         }
     }
 
-
-    // =============================================================
-    // POST
-    // =============================================================
     post {
 
         always {
-
             sh 'docker image prune -f || true'
         }
 
-
         success {
-
             echo """
 ==========================================
        CHAT APP PIPELINE SUCCESS
 ==========================================
 
-IMAGE TAG:
-${IMAGE_TAG}
-
-BACKEND:
+Backend:
 ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
-FRONTEND:
+Frontend:
 ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
 
 ==========================================
 """
         }
 
-
         failure {
-
             echo """
 ==========================================
        CHAT APP PIPELINE FAILED
