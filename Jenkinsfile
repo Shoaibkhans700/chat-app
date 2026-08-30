@@ -1,19 +1,11 @@
 pipeline {
 
-    agent {
-        docker {
-            image 'shoaib3/python-agent'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     environment {
         DOCKERHUB      = 'shoaib3'
         BACKEND_REPO   = 'chat-backend'
         FRONTEND_REPO  = 'chat-frontend'
-
-        // Jenkins provides GIT_COMMIT after checkout
-        IMAGE_TAG      = "${GIT_COMMIT.take(7)}"
     }
 
     stages {
@@ -34,9 +26,18 @@ pipeline {
         }
 
         stage('Backend Unit Test') {
+
+            agent {
+                docker {
+                    image 'shoaib3/python-agent:latest'
+                }
+            }
+
             steps {
                 dir('backend') {
                     sh '''
+                        python3 --version
+
                         python3 -m venv .venv
                         . .venv/bin/activate
 
@@ -50,26 +51,29 @@ pipeline {
         }
 
         stage('SonarQube Analysis') {
-            steps {
 
+            steps {
                 withSonarQubeEnv('sonarqube') {
 
-                    sh '''
-                        sonar-scanner \
-                          -Dsonar.projectKey=chat-app \
-                          -Dsonar.projectName=chat-app \
-                          -Dsonar.sources=backend,frontend \
-                          -Dsonar.sourceEncoding=UTF-8
-                    '''
+                    script {
+                        def scannerHome = tool 'sonar-scanner'
+
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=chat-app \
+                              -Dsonar.projectName=chat-app \
+                              -Dsonar.sources=backend,frontend \
+                              -Dsonar.sourceEncoding=UTF-8
+                        """
+                    }
                 }
             }
         }
 
         stage('SonarQube Quality Gate') {
+
             steps {
-
                 timeout(time: 5, unit: 'MINUTES') {
-
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -102,10 +106,12 @@ pipeline {
         }
 
         stage('Trivy Security Scan') {
-            steps {
 
+            steps {
                 sh '''
-                    echo "Scanning Backend Image..."
+                    echo "=============================="
+                    echo "Scanning Backend Image"
+                    echo "=============================="
 
                     trivy image \
                       --severity HIGH,CRITICAL \
@@ -113,7 +119,9 @@ pipeline {
                       ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
 
-                    echo "Scanning Frontend Image..."
+                    echo "=============================="
+                    echo "Scanning Frontend Image"
+                    echo "=============================="
 
                     trivy image \
                       --severity HIGH,CRITICAL \
@@ -136,23 +144,19 @@ pipeline {
                 ]) {
 
                     sh '''
-                        echo "$DOCKER_PASSWORD" | \
-                        docker login \
+                        echo "$DOCKER_PASSWORD" | docker login \
                           --username "$DOCKER_USERNAME" \
                           --password-stdin
 
-
-                        echo "Pushing Backend..."
+                        echo "Pushing Backend Image..."
 
                         docker push \
                           ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
-
-                        echo "Pushing Frontend..."
+                        echo "Pushing Frontend Image..."
 
                         docker push \
                           ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
-
 
                         docker logout
                     '''
@@ -169,28 +173,30 @@ pipeline {
 
         success {
             echo """
-            ==========================================
-              CHAT APP PIPELINE SUCCESS
-            ==========================================
+==========================================
+       CHAT APP PIPELINE SUCCESS
+==========================================
 
-            Backend:
-            ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
+Backend:
+${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
-            Frontend:
-            ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
+Frontend:
+${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
 
-            ==========================================
-            """
+==========================================
+"""
         }
 
         failure {
             echo """
-            ==========================================
-              CHAT APP PIPELINE FAILED
-            ==========================================
-            Check the failed stage above.
-            ==========================================
-            """
+==========================================
+       CHAT APP PIPELINE FAILED
+==========================================
+
+Check the failed stage above.
+
+==========================================
+"""
         }
     }
 }
