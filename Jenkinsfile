@@ -55,7 +55,7 @@ pipeline {
                 sh '''
                 echo "Testing SonarQube..."
                 curl -u "$SONAR_AUTH_TOKEN:" \
-                    http://13.204.67.149:9000/api/v2/analysis/version
+                   http://13.233.122.62:9000/api/v2/analysis/version
             '''
         }
     }
