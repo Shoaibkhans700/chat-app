@@ -50,6 +50,21 @@ pipeline {
             }
         }
 
+        stage('Test Sonar Authentication') {
+
+            steps {
+                withSonarQubeEnv('sonarqube') {
+
+                    sh '''
+                        echo "Testing SonarQube..."
+
+                        curl -u "$SONAR_AUTH_TOKEN:" \
+                            http://13.203.154.220:9000/api/v2/analysis/version
+                    '''
+                }
+            }
+        }
+
         stage('SonarQube Analysis') {
 
             steps {
@@ -84,6 +99,7 @@ pipeline {
             parallel {
 
                 stage('Backend Image') {
+
                     steps {
                         sh '''
                             docker build \
@@ -94,6 +110,7 @@ pipeline {
                 }
 
                 stage('Frontend Image') {
+
                     steps {
                         sh '''
                             docker build \
@@ -117,7 +134,6 @@ pipeline {
                       --severity HIGH,CRITICAL \
                       --exit-code 0 \
                       ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
-
 
                     echo "=============================="
                     echo "Scanning Frontend Image"
