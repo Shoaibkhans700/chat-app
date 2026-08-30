@@ -1,0 +1,23 @@
+# Applied once, manually or via `argocd app create`, to point Argo CD at
+# the GitOps repo. After this, every push to that repo is auto-synced -
+# see README.md "Argo CD" section for the exact setup commands.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chat-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<your-org>/chat-app-gitops.git
+    targetRevision: main
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chat-app
+  syncPolicy:
+    automated:
+      prune: true      # remove resources deleted from Git
+      selfHeal: true    # revert manual kubectl edits back to Git state
+    syncOptions:
+      - CreateNamespace=true

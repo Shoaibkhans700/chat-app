@@ -1,0 +1,52 @@
+name: chat-app
+
+services:
+  # Local-only Postgres. In Kubernetes/AWS this is replaced by RDS -
+  # see README.md section "AWS RDS setup". Never used in production.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: chatapp
+      POSTGRES_USER: chatapp
+      POSTGRES_PASSWORD: chatapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatapp -d chatapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: chatapp
+      DB_USERNAME: chatapp
+      DB_PASSWORD: chatapp
+      JWT_SECRET_KEY: dev-only-secret-change-me
+      JWT_EXPIRE_MINUTES: "60"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:8080"
+    environment:
+      # nginx.conf.template resolves this at container start
+      BACKEND_URL: "http://backend:8000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

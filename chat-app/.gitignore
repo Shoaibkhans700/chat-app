@@ -1,0 +1,35 @@
+# --- environment / secrets ---
+.env
+.env.*
+!*.env.example
+*credentials*
+*secrets*
+!k8s/secret.yaml
+!gitops-repo-example/*
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- node / frontend ---
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# --- build artifacts ---
+build/
+*.tgz
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# --- misc ---
+*.log

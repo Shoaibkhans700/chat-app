@@ -1,0 +1,22 @@
+# ClusterIP: the backend is never called directly from outside the
+# cluster. The frontend's Nginx container proxies /api/* to this Service
+# name internally, and the Ingress only points at the frontend Service.
+# Keeping the backend off the Ingress reduces the externally-reachable
+# attack surface to a single entry point.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: chat-app
+  labels:
+    app: chat-app
+    component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: chat-app
+    component: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP

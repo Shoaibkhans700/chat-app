@@ -1,0 +1,74 @@
+# -----------------------------------------------------------------------
+# This file simulates what would live in a SEPARATE "gitops" repository
+# (e.g. chat-app-gitops), not in the application source repo.
+#
+# Flow:
+#   1. Jenkins builds the app repo, pushes an image to ECR tagged with
+#      the git commit SHA.
+#   2. Jenkins (or a small script step) clones this GitOps repo, updates
+#      the `image:` line below to the new tag, commits, and pushes.
+#   3. Argo CD, which continuously watches this repo, detects the diff
+#      and applies it to the cluster - Jenkins itself never runs
+#      `kubectl apply`. See README.md "GitOps" for the full explanation.
+#
+# In a real setup this repo would hold copies of every manifest in ../k8s
+# (namespace, configmap, secret references, services, ingress, hpa). Only
+# backend-deployment.yaml is reproduced here to keep this example short -
+# the rest are identical to their counterparts in ../k8s.
+# -----------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: chat-app
+  labels:
+    app: chat-app
+    component: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: chat-app
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: chat-app
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          # <ECR_REPOSITORY>:<IMAGE_TAG> resolved to a real value - this is
+          # the line Jenkins' "Update GitOps Repository" stage edits.
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-backend:a1b2c3d
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: database-config
+                  key: DB_HOST
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: database-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-secret
+                  key: DB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
