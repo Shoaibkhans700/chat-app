@@ -45,7 +45,7 @@ spec:
         - name: backend
           # <ECR_REPOSITORY>:<IMAGE_TAG> resolved to a real value - this is
           # the line Jenkins' "Update GitOps Repository" stage edits.
-          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-backend:a1b2c3d
+          image: shoaib3/chat-backend:v18
           ports:
             - containerPort: 8000
           env:
