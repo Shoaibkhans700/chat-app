@@ -14,11 +14,8 @@ pipeline {
             steps {
                 checkout scm
 
-                script {
-                    env.IMAGE_TAG = sh(
-                        script: 'git rev-parse --short=7 HEAD',
-                        returnStdout: true
-                    ).trim()
+                    script {
+                    env.IMAGE_TAG = "v${BUILD_NUMBER}"
 
                     echo "Image Tag: ${env.IMAGE_TAG}"
                 }
