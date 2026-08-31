@@ -27,7 +27,7 @@ spec:
         - name: backend
           # Replace <ECR_REPOSITORY> with your ECR repo URI. Jenkins/Argo CD
           # update this tag - see README.md "CI/CD" and "GitOps" sections.
-          image: <ECR_REPOSITORY>/chat-backend:<IMAGE_TAG>
+          image: shoaib3/chat-backend:v18
           ports:
             - containerPort: 8000
           env:

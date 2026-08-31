@@ -26,7 +26,7 @@ spec:
       containers:
         - name: frontend
           # Replace <ECR_REPOSITORY> with your ECR repo URI.
-          image: <ECR_REPOSITORY>/chat-frontend:<IMAGE_TAG>
+          image: shoaib3/chat-frontend:v18
           ports:
             - containerPort: 8080
           env:
