@@ -3,53 +3,81 @@ kind: StatefulSet
 metadata:
   name: postgres
   namespace: chat-app
+
 spec:
-  serviceName: postgres          # must match the headless Service above
-  replicas: 1                     # single instance - no replication set up here
+  serviceName: postgres
+  replicas: 1
+
   selector:
     matchLabels:
       app: postgres
+
   template:
     metadata:
       labels:
         app: postgres
+
     spec:
       containers:
         - name: postgres
           image: postgres:16-alpine
+
           ports:
             - containerPort: 5432
+              protocol: TCP
+
           env:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_USER
+
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
+
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_DB
+
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "chatapp", "-d", "chatapp"]
+              command:
+                - pg_isready
+                - -U
+                - chatapp
+                - -d
+                - chatapp
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "chatapp", "-d", "chatapp"]
+              command:
+                - pg_isready
+                - -U
+                - chatapp
+                - -d
+                - chatapp
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+
           resources:
             requests:
               cpu: "250m"
@@ -57,15 +85,17 @@ spec:
             limits:
               cpu: "1"
               memory: "512Mi"
-  # Gives postgres-0 its own PVC, re-attached to postgres-0 specifically on
-  # any reschedule - this is what a Deployment cannot do.
+
   volumeClaimTemplates:
     - metadata:
         name: postgres-storage
+
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes:
+          - ReadWriteOnce
+
+        storageClassName: gp2
+
         resources:
           requests:
             storage: 5Gi
-        # storageClassName: gp3   # uncomment and set for your cluster if the
-                                   # default StorageClass isn't what you want

@@ -9,8 +9,6 @@ metadata:
   name: database-config
   namespace: chat-app
 data:
-  # postgres-0.<service>.<namespace>.svc.cluster.local - the StatefulSet
-  # pod's stable DNS name, from the headless Service in service.yaml.
-  DB_HOST: "postgres-0.postgres.chat-app.svc.cluster.local"
+  DB_HOST: postgres
   DB_PORT: "5432"
   DB_NAME: "chatapp"
