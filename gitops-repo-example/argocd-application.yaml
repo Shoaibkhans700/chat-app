@@ -11,7 +11,7 @@ spec:
   source:
     repoURL: https://github.com/Shoaibkhans700/chat-app.git
     targetRevision: main
-    path: .
+    path: gitops-repo-example
   destination:
     server: https://kubernetes.default.svc
     namespace: chat-app
