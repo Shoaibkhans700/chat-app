@@ -6,6 +6,9 @@ pipeline {
         DOCKERHUB      = 'shoaib3'
         BACKEND_REPO   = 'chat-backend'
         FRONTEND_REPO  = 'chat-frontend'
+
+        GITOPS_REPO    = 'https://github.com/Shoaibkhans700/chat-app-k8-manifest.git'
+        GITOPS_BRANCH  = 'main'
     }
 
     stages {
@@ -14,10 +17,10 @@ pipeline {
             steps {
                 checkout scm
 
-                    script {
+                script {
                     env.IMAGE_TAG = "v${BUILD_NUMBER}"
 
-                    echo "Image Tag: ${env.IMAGE_TAG}"
+                    echo "Image Tag: ${IMAGE_TAG}"
                 }
             }
         }
@@ -33,6 +36,8 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
+                        set -e
+
                         python3 --version
 
                         python3 -m venv .venv
@@ -46,19 +51,25 @@ pipeline {
                 }
             }
         }
+
         stage('Test Sonar Authentication') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-                sh '''
-                echo "Testing SonarQube..."
-                curl -u "$SONAR_AUTH_TOKEN:" \
-                  http://65.0.6.193:9000/api/v2/analysis/version
-            '''
-        }
-    }
-}
-        stage('SonarQube Analysis') {
+                    sh '''
+                        set -e
 
+                        echo "Testing SonarQube..."
+
+                        curl -u "$SONAR_AUTH_TOKEN:" \
+                          http://65.0.6.193:9000/api/v2/analysis/version
+
+                        echo "SonarQube authentication successful"
+                    '''
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
 
@@ -66,6 +77,8 @@ pipeline {
                         def scannerHome = tool 'sonar-scanner'
 
                         sh """
+                            set -e
+
                             ${scannerHome}/bin/sonar-scanner \
                               -Dsonar.projectKey=chat-app \
                               -Dsonar.projectName=chat-app \
@@ -78,7 +91,6 @@ pipeline {
         }
 
         stage('SonarQube Quality Gate') {
-
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
@@ -93,6 +105,8 @@ pipeline {
                 stage('Backend Image') {
                     steps {
                         sh '''
+                            set -e
+
                             docker build \
                               -t ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG} \
                               ./backend
@@ -103,6 +117,8 @@ pipeline {
                 stage('Frontend Image') {
                     steps {
                         sh '''
+                            set -e
+
                             docker build \
                               -t ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG} \
                               ./frontend
@@ -113,12 +129,11 @@ pipeline {
         }
 
         stage('Trivy Security Scan') {
-
             steps {
                 sh '''
-                    echo "=============================="
+                    set -e
+
                     echo "Scanning Backend Image"
-                    echo "=============================="
 
                     trivy image \
                       --severity HIGH,CRITICAL \
@@ -126,9 +141,7 @@ pipeline {
                       ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 
 
-                    echo "=============================="
                     echo "Scanning Frontend Image"
-                    echo "=============================="
 
                     trivy image \
                       --severity HIGH,CRITICAL \
@@ -139,7 +152,6 @@ pipeline {
         }
 
         stage('Push to Docker Hub') {
-
             steps {
 
                 withCredentials([
@@ -151,21 +163,92 @@ pipeline {
                 ]) {
 
                     sh '''
+                        set -e
+
                         echo "$DOCKER_PASSWORD" | docker login \
                           --username "$DOCKER_USERNAME" \
                           --password-stdin
 
-                        echo "Pushing Backend Image..."
-
                         docker push \
                           ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
-
-                        echo "Pushing Frontend Image..."
 
                         docker push \
                           ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
 
                         docker logout
+                    '''
+                }
+            }
+        }
+
+        stage('Update GitOps Repository') {
+
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-cred',
+                        usernameVariable: 'GITHUB_USERNAME',
+                        passwordVariable: 'GITHUB_TOKEN'
+                    )
+                ]) {
+
+                    sh '''
+                        set -e
+
+                        rm -rf gitops-repo
+
+                        git clone \
+                          https://${GITHUB_USERNAME}:${GITHUB_TOKEN}@github.com/Shoaibkhans700/chat-app-k8-manifest.git \
+                          gitops-repo
+
+                        cd gitops-repo
+
+                        echo "Updating Backend Image..."
+
+                        sed -i \
+                          "s|image: shoaib3/chat-backend:.*|image: shoaib3/chat-backend:${IMAGE_TAG}|g" \
+                          backend-deployment.yaml
+
+
+                        echo "Updating Frontend Image..."
+
+                        sed -i \
+                          "s|image: shoaib3/chat-frontend:.*|image: shoaib3/chat-frontend:${IMAGE_TAG}|g" \
+                          frontend-deployment.yaml
+
+
+                        echo "Updated images:"
+
+                        grep "image:" backend-deployment.yaml
+                        grep "image:" frontend-deployment.yaml
+
+
+                        git config user.name "Jenkins"
+                        git config user.email "jenkins@localhost"
+
+
+                        git add \
+                          backend-deployment.yaml \
+                          frontend-deployment.yaml
+
+
+                        if git diff --cached --quiet; then
+
+                            echo "No changes detected."
+
+                        else
+
+                            git commit \
+                              -m "Update images to ${IMAGE_TAG}"
+
+                            git push origin main
+
+                        fi
+
+                        cd ..
+
+                        rm -rf gitops-repo
                     '''
                 }
             }
@@ -181,7 +264,7 @@ pipeline {
         success {
             echo """
 ==========================================
-       CHAT APP PIPELINE SUCCESS
+       PIPELINE SUCCESS
 ==========================================
 
 Backend:
@@ -190,6 +273,10 @@ ${DOCKERHUB}/${BACKEND_REPO}:${IMAGE_TAG}
 Frontend:
 ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
 
+GitOps:
+${GITOPS_REPO}
+
+ArgoCD will automatically sync.
 ==========================================
 """
         }
@@ -197,11 +284,13 @@ ${DOCKERHUB}/${FRONTEND_REPO}:${IMAGE_TAG}
         failure {
             echo """
 ==========================================
-       CHAT APP PIPELINE FAILED
+       PIPELINE FAILED
 ==========================================
 
-Check the failed stage above.
+Build Number: ${BUILD_NUMBER}
+Image Tag:    ${IMAGE_TAG}
 
+Check the failed stage.
 ==========================================
 """
         }
