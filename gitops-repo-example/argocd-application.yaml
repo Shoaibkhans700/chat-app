@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/<your-org>/chat-app-gitops.git
+    repoURL: https://github.com/Shoaibkhans700/chat-app.git
     targetRevision: main
     path: .
   destination:
