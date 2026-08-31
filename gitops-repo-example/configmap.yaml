@@ -4,8 +4,6 @@ metadata:
   name: database-config
   namespace: chat-app
 data:
-  # Replace DB_HOST with your RDS endpoint, e.g.
-  # chatapp-db.abcd1234wxyz.us-east-1.rds.amazonaws.com
   DB_HOST: "postgres"
   DB_PORT: "5432"
   DB_NAME: "chatapp"
@@ -26,6 +24,4 @@ metadata:
   name: frontend-config
   namespace: chat-app
 data:
-  # DNS name of the backend Service (see backend-service.yaml), used by
-  # nginx.conf.template inside the frontend container to proxy /api/*.
   BACKEND_URL: "http://backend-service.chat-app.svc.cluster.local:8000"
