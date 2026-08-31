@@ -1,0 +1,16 @@
+# Apply this AFTER k8s/configmap.yaml — it replaces just the `database-config`
+# ConfigMap's data (same name+namespace = kubectl apply overwrites it),
+# leaving `backend-config` and `frontend-config` (also defined in
+# k8s/configmap.yaml) untouched. This is what actually points the backend
+# at the in-cluster Postgres instead of RDS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+  namespace: chat-app
+data:
+  # postgres-0.<service>.<namespace>.svc.cluster.local - the StatefulSet
+  # pod's stable DNS name, from the headless Service in service.yaml.
+  DB_HOST: "postgres-0.postgres.chat-app.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "chatapp"

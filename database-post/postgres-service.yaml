@@ -1,0 +1,17 @@
+# Headless (clusterIP: None) so each StatefulSet pod is individually
+# addressable at postgres-<ordinal>.postgres.chat-app.svc.cluster.local,
+# instead of being load-balanced like a normal Service would.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: chat-app
+  labels:
+    app: postgres
+spec:
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
