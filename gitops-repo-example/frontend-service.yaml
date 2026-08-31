@@ -1,0 +1,20 @@
+# ClusterIP: the Ingress (backed by the AWS Load Balancer Controller,
+# target-type "ip") routes directly to pod IPs, so a plain ClusterIP
+# Service is all that's needed here - no NodePort required.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: chat-app
+  labels:
+    app: chat-app
+    component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: chat-app
+    component: frontend
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP

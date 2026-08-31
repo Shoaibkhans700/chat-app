@@ -1,0 +1,33 @@
+# Requires the AWS Load Balancer Controller to be installed in the
+# cluster (see README.md "EKS deployment"). It watches Ingress objects
+# with this class and provisions/configures an Application Load Balancer
+# to match - no separate Terraform/console step needed for the ALB itself.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-app-ingress
+  namespace: chat-app
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # "ip" target-type = ALB routes straight to pod IPs (via the VPC CNI),
+    # bypassing kube-proxy/NodePort entirely. Requires ClusterIP Services,
+    # which is what frontend-service.yaml / backend-service.yaml use.
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    # Redirect HTTP -> HTTPS once you've attached an ACM certificate below.
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID
+spec:
+  rules:
+    - host: chat.example.com   # replace with your real domain (Route 53)
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 80
